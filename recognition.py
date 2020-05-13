@@ -78,47 +78,6 @@ TESTTING = "testing/"
 
 subfolders = [ f.path for f in os.scandir(DATA) if f.is_dir() ]
 
-count = -1
-
-class_count = 0
-for subfolder in subfolders:
-    folder_name = subfolder.split("/")[1]
-    os.mkdir("/Users/jindeshubham/Desktop/handwritten_recognition/training/" + folder_name)
-    os.mkdir("/Users/jindeshubham/Desktop/handwritten_recognition/testing/" + folder_name)
-
-    subfolder = "/Users/jindeshubham/Desktop/handwritten_recognition/" + subfolder
-    print("Subfolder is ",subfolder)
-    count=count+1
-    train_list=[]
-    test_list =[]
-    files = []
-    for (dirpath, dirnames, filenames) in walk(subfolder):
-        file_cnt = len(filenames)
-
-
-        for file in filenames:
-            print("file is ",file)
-            file_jpg = file.split(".")[0]
-            file_jpg = file_jpg + ".jpg"
-
-            if np.random.rand(1) < 0.8:
-               shutil.copy(subfolder + '/' + file,'training/' + folder_name + "/" + file_jpg)
-               train_list.append(str(count))
-            else:
-               shutil.copy(subfolder + '/' + file, 'testing/' + folder_name + "/" + file_jpg)
-               test_list.append(str(count))
-
-        print("Training class\n ",train_list)
-        with open("training.txt", "a+") as f:
-             f.write("\n")
-             f.write('\n'.join(train_list))
-
-        with open("testing.txt", "a+") as f:
-             f.write("\n")
-             f.write('\n'.join(test_list))
-
-
-
 ## Obtain dataset
 
 image_generator = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1/255)
