@@ -2,6 +2,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import statistics
 class Point:
     def  __init__(self, x, y):
         self.x = x
@@ -15,6 +16,49 @@ class Node:
         self.h_score = h_score
         self.parent  = parent
         self.visited = True
+def segment_words(sentence_img):
+    sentence_img_cp = np.copy(sentence_img)
+    sent_hgt, sent_wid = sentence_img_cp.shape
+    for i in range(0, sent_hgt):
+        for j in range(0, sent_wid):
+            if(sentence_img_cp[i][j] < 150):
+                sentence_img_cp[i][j] = 0
+            else:
+                sentence_img_cp[i][j] = 1
+    vertical_projection = []
+    for i in range(0,sent_wid):
+        sum = 1
+        for j in range(0,sent_hgt):
+            sum = sum + sentence_img_cp[j][i]
+        vertical_projection.append(sum)
+    plt.plot(vertical_projection)
+    plt.savefig("Vertical_projection.jpg")
+    gap_lnt = 0
+    gap_str = []
+    for i in range(0, sent_wid):
+        if (vertical_projection[i] == sent_hgt):
+            gap_lnt = gap_lnt + 1
+        elif (vertical_projection[i] != sent_hgt):
+            if (gap_lnt != 0):
+                gap_str.append(gap_lnt)
+            gap_lnt = 0
+    print("Gap Length ", gap_lnt)
+    average_length = statistics.mean(gap_str)
+
+    gap_lnt = 0
+    word_cut = []
+    for i in range(0, sent_wid):
+        if (vertical_projection[i] == sent_hgt):
+            gap_lnt = gap_lnt + 1
+        else:
+            if (gap_lnt != 0):
+                if (gap_lnt >= average_length):
+                    word_cut.append(i)
+            gap_lnt = 0
+    for i in range(0, len(word_cut)):
+        sentence_img[0:sent_hgt, word_cut[i]] = 100
+    return sentence_img
+
 
 
 
@@ -39,6 +83,11 @@ def check_peak(idx, histogram, filter_size):
 def return_min_idx(start,end,histogram):
     hist = histogram[start:end]
     idx=hist.index(min(hist))
+    return start + idx
+
+def return_max_idx(start,end,histogram):
+    hist = histogram[start+50:end-50]
+    idx=hist.index(max(hist))
     return start + idx
 
 def straight_path_exist(start,end,search_arr):
@@ -73,17 +122,23 @@ def check_in_lst(pnt, lst):
 
     return False, None
 
+
+def blocks_on_road(grid):
+    lst = []
+    for i in range(0,len(grid)):
+        if grid[i] < 100:
+            lst.append(i)
+    return lst
+
 # def check_in_grid(row,Point):
 #     if abs(Point.x - row)> 20
 #         return False
 
 def a_star(start_x,end, row, grid,grid_width,grid_height):
-    #col_cnt = np.zeros()
     open_lst = []
     close_lst = []
     start_pt = Point(row, start_x)
     end_pt = Point(row, end)
-
     g_score = 0
     h_score = heuristics(start_pt,end_pt)
     f_score = g_score + h_score
@@ -111,8 +166,6 @@ def a_star(start_x,end, row, grid,grid_width,grid_height):
         for direction in directions:
             x_pt = current.cordinates.x + direction[0]
             y_pt = current.cordinates.y + direction[1]
-
-
 
             neighbr_pt = Point(x_pt, y_pt)
 
@@ -177,12 +230,27 @@ for i in range(0,len(hist)):
         if(hist[i]>100):
           peaks.append(i)
 
+
+for i in range(0,len(peaks)-1):
+    start = peaks[i]
+    end   = peaks[i+1]
+    if (end - start > 300):
+        idx = return_max_idx(start,end,hist)
+        print("Inserting another potential peak at ", idx)
+        peaks.insert(i+1,idx)
+
+
+
+
 ####Get the valleys
 for i in range(0,len(peaks)-1):
     start = peaks[i]
     end   = peaks[i+1]
     idx = return_min_idx(start,end,hist)
     valleys.append(idx)
+
+####Potential small words
+
 
 
 print("Peaks ",peaks)
@@ -193,15 +261,64 @@ save_img =  np.zeros((img_height,img_width))
 for i in range(0,img_height):
     for j in range(0,img_width):
         save_img[i][j] = image[i][j]
+frst_ln = valleys[0]
+lst_ln = valleys[-1]
+
+
+valleys.insert(0,frst_ln-300)
+valleys.insert(-1,lst_ln+300)
+
+###Remove the blocks
+
+# for i in range(0,len(valleys)):
+#     block_col =blocks_on_road(save_img[valleys][:])
+
+
 
 # for i in range(0,img_width):
 #     save_img[valleys[0]][i] = 100
 
+lowr_lines_max = []
+upr_line_min = []
+line_str = []
+
 for i in range(0,len(valleys)):
     end_nd = a_star(0, img_width, valleys[i], save_img,img_width-1,img_height-1)
+    lower_line_max = 0
+    upper_line_min = 99999
+    line = []
     while(end_nd!=None):
         save_img[end_nd.cordinates.x][end_nd.cordinates.y] = 100
+        line.append(end_nd.cordinates.x)
+        if(end_nd.cordinates.x > lower_line_max):
+            lower_line = end_nd.cordinates.x
+            lower_line_max = end_nd.cordinates.x
+        if(end_nd.cordinates.x < upper_line_min):
+            upper_line_min = end_nd.cordinates.x
+            upper_line = end_nd.cordinates.x
         end_nd = end_nd.parent
+    line.reverse()
+    line_str.append(line)
+    upr_line_min.append(upper_line_min)
+    lowr_lines_max.append(lower_line)
+
+for iter in range(1,len(valleys)):
+    upper_line = upr_line_min[iter-1]
+    lower_line = lowr_lines_max[iter]
+    img_cp = np.copy(save_img)
+    print("Img width",img_width)
+    for i in range(0,img_width):
+        print("I is ",i)
+        img_cp[0:line_str[iter-1][i],i] = 255
+        img_cp[line_str[iter][i]:img_height,i] = 255
+
+    img_cp = img_cp[upper_line:lower_line,:]
+    img_cp = segment_words(img_cp)
+    save_ln = Image.fromarray(img_cp)
+    if save_ln !='RGB':
+        save_ln = save_ln.convert('RGB')
+    save_ln.save(str(iter)+".jpg")
+
 print("Done updating \n")
 im = Image.fromarray(save_img)
 
@@ -209,6 +326,7 @@ if im.mode != 'RGB':
     im = im.convert('RGB')
 im.save("Test3.jpg")
 print("Done")
+
 
 
 
