@@ -3,19 +3,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import statistics
+import sys
+import time
+from scipy.signal import argrelextrema
+
+
 class Point:
     def  __init__(self, x, y):
         self.x = x
         self.y = y
 
 class Node:
-    def __init__(self, point, parent, f_score, g_score, h_score):
+    def __init__(self, point, parent, f_score, g_score):
         self.cordinates = point
         self.f_score = f_score
         self.g_score = g_score
-        self.h_score = h_score
         self.parent  = parent
         self.visited = True
+        
 def segment_words(sentence_img):
     sentence_img_cp = np.copy(sentence_img)
     sent_hgt, sent_wid = sentence_img_cp.shape
@@ -42,7 +47,7 @@ def segment_words(sentence_img):
             if (gap_lnt != 0):
                 gap_str.append(gap_lnt)
             gap_lnt = 0
-    print("Gap Length ", gap_lnt)
+    #print("Gap Length ", gap_lnt)
     average_length = statistics.mean(gap_str)
 
     gap_lnt = 0
@@ -100,13 +105,18 @@ def straight_path_exist(start,end,search_arr):
     return True
 
 def heuristics(Point1, Point2):
-    return ((Point1.x - Point2.x)**2) + ((Point1.y - Point2.y)**2)
+    return (((Point1.x - Point2.x)**2 + (Point1.y - Point2.y)**2)*1.1)
 
 def transverable(Point,grid):
-    print("Coordinate \n", grid[Point.x][Point.y])
-    print("Point \n",Point.x, Point.y)
+    
+    ### idea: let's first cut through based on A* star heuristic, save the positions of line crossing
+    ### and cut them again  for whatever gives the best match up with our pilot model to then exchange involved
+    ### letters in the data
+    
+    #print("Coordinate \n", grid[Point.x][Point.y])
+    #print("Point \n",Point.x, Point.y)
     if(grid[Point.x][Point.y] > 200):
-
+        
         return True
 
     return False
@@ -114,10 +124,24 @@ def transverable(Point,grid):
 def g_score_cal(direction):
     return float(math.sqrt(direction[0]*direction[0] + direction[1]*direction[1]))
 
+def min_dist(position, image, win_h):
+    C = 150
+    min_d = 0
+    x= position.x
+    y= position.y
+    while(min_d < win_h/2 and image[x+min_d,y] > 200 and image[x-min_d,y] > 200):
+        min_d += 1
+    
+    return C/(1+min_d)
+
+def new_g_score_cal(direction, position, image, win_h):
+    return float(math.sqrt(direction[0]*direction[0] + direction[1]*direction[1])) + min_dist(position, image, win_h)
+
+
 
 def check_in_lst(pnt, lst):
     for elmnt in lst:
-        if elmnt.cordinates == pnt:
+        if (elmnt.cordinates.x == pnt.x and elmnt.cordinates.y == pnt.y):
             return True, elmnt
 
     return False, None
@@ -134,79 +158,95 @@ def blocks_on_road(grid):
 #     if abs(Point.x - row)> 20
 #         return False
 
-def a_star(start_x,end, row, grid,grid_width,grid_height):
+def a_star(start ,end, image, win_h): #grid_width,grid_height):
+    im_hgt, im_wid = image.shape
     open_lst = []
     close_lst = []
-    start_pt = Point(row, start_x)
-    end_pt = Point(row, end)
+    #start_pt = Point(row, start_x)
+    #end_pt = Point(row, end)
     g_score = 0
-    h_score = heuristics(start_pt,end_pt)
+    h_score = heuristics(start,end)
     f_score = g_score + h_score
-    strt_node = Node(start_pt,None, f_score, g_score, h_score)
-
-    directions = [[0,1],[1,1],[-1,1],[1,0],[-1,0]]
+    strt_node = Node(start,None, f_score, g_score)
+    print(str(start.x) + ' : ' + str(start.y) + '\n')
+    directions = [[0,1],[1,0],[1,1],[-1,1],[-1,0]] # right, top, top_right, bottom_right, bottom
+    ##[[1,0],[1,1],[1,-1],[0,1],[0,-1]] #[[0,1],[1,1],[-1,1],[1,0],[-1,0]] #
     open_lst.append(strt_node)
-
-    while(1):
-        f_score_min = 40000 ** 2
-
+    counter = 0
+    while(len(open_lst) > 0):
+        counter += 1
+        #print('Length of open_list:' + str(len(open_lst)) + '\n')
+        f_score_min = math.inf
         for node_elemnt in open_lst:
-
-            if(node_elemnt.f_score < f_score_min):
+            
+            # find the element with lowest f_value in open list
+            if(node_elemnt.f_score < f_score_min): #ordered list instead of traversing it every iteration
                 current = node_elemnt
                 f_score_min = node_elemnt.f_score
 
         open_lst.remove(current)
         close_lst.append(current)
-
-
-        if(current.cordinates.x == row and current.cordinates.y == end-1):
+        #if (current.cordinates.x > 3500):
+        if (counter == 5000):
+        # print('Next [' + str(current.cordinates.x) + ', ' + str(current.cordinates.y) + ']\n' )
+            print('more than 5000 steps explored \n')
+        # time.sleep(10)
+        
+        #if we are at the goal then return
+        if(current.cordinates.x == end.x and current.cordinates.y == end.y): #.x and current.cordinates.y == end.y):
             return current
 
         for direction in directions:
-            x_pt = current.cordinates.x + direction[0]
-            y_pt = current.cordinates.y + direction[1]
+            x = current.cordinates.x + direction[0]
+            y = current.cordinates.y + direction[1]
 
-            neighbr_pt = Point(x_pt, y_pt)
-
-            if ((neighbr_pt.x > grid_height) or (neighbr_pt.x < 0) or (neighbr_pt.y > grid_width) or (neighbr_pt.y < 0)):
+            neighbr = Point(x, y)
+            #if (counter > 3600):
+            #print('Checking [' + str(neighbr.x) + ', ' + str(neighbr.y) + ']\n' )
+                #time.sleep(.5)
+            
+            #Checking whether we are still in the window and neighbour is white. Maybe win_h * 1.5 or based on maxima
+            if ((neighbr.x > min(im_hgt, start.x+win_h/2)) or (neighbr.x < max(0, start.x-win_h/2)) or (neighbr.y < 0) or (neighbr.y > end.y)):
                 continue
-
-            if not transverable(neighbr_pt, grid):
+            if not transverable(neighbr, image): #needs to be able to cut through blacks eventually
                 continue
-
-            cls_lst_cordinates = [cls.cordinates for cls in close_lst]
-            exist_flag = 0
+            
+            #Already in the closed list?
+            cls_lst_cordinates = [cls.cordinates for cls in close_lst] #do not rebuild it all the time
+            exist_flag = 0 
             for cls_lst_elmnt in cls_lst_cordinates:
-                if(cls_lst_elmnt.x == neighbr_pt.x and cls_lst_elmnt.y == neighbr_pt.y):
+                if(cls_lst_elmnt.x == neighbr.x and cls_lst_elmnt.y == neighbr.y):
                     exist_flag=1
                     break
-
             if(exist_flag):
-                 print("Present in the closed list")
+                 #print("Present in the closed list")
                  continue
 
-
-            g_scr = g_score_cal(direction)
-            h_scr = heuristics(neighbr_pt,end_pt)
-            f_scr = g_scr + h_scr + current.g_score
-
-            flag, elemt=check_in_lst(neighbr_pt, open_lst)
+            #f_score computation
+            g_scr = g_score_cal(direction) + current.g_score 
+            #g_scr = new_g_score_cal(direction, current.cordinates, image, win_h) + current.g_score 
+            h_score = heuristics(neighbr,end)
+            f_scr = h_score + g_scr #g_scr + h_scr + current.g_score
+            # print('    g_score ' + str(g_scr) +  ' : ' + 'h_score ' + str(h_score) + '\n')
+            #if it is already in the open list, keep only the one with the lower f-score otgerwise just save it
+            flag, elemt=check_in_lst(neighbr, open_lst)
 
             if(flag):
-                if f_scr < elemt.f_score:
+                if f_scr < elemt.f_score: #is this even a possibility in un weighted graph like this?
                     open_lst.remove(elemt)
-                    new_elmnt = Node(neighbr_pt, current, f_scr, g_scr, h_scr)
+                    new_elmnt = Node(neighbr, current, f_scr, g_scr)
                     open_lst.append(new_elmnt)
+                    #print('Replacing element in open list [' + str(neighbr.x) + ', ' + str(neighbr.y) + ']\n' )
                 else:
                     continue
             else:
-                new_elmnt = Node(neighbr_pt, current, f_scr, g_scr, h_scr)
+                new_elmnt = Node(neighbr, current, f_scr, g_scr)
                 open_lst.append(new_elmnt)
+    print("Error: A* found no viable path")
+    sys.exit()
+    
 
-
-
-image = np.asarray(Image.open('/Users/jindeshubham/Desktop/handwritten_recognition/image-data/P342-Fg001-R-C01-R01-binarized.jpg'))
+image = np.asarray(Image.open('/home/basti/Desktop/HWR/binarized/P123-Fg001-R-C01-R01-binarized.jpg'))
 img_height, img_width = image.shape
 hist=[]
 for i in range(0,img_height):
@@ -215,6 +255,7 @@ for i in range(0,img_height):
         if(image[i][j] == 0):
             count = count + 1
     hist.append(count)
+
 
 plt.plot(hist)
 plt.savefig("test1.jpg")
@@ -236,11 +277,8 @@ for i in range(0,len(peaks)-1):
     end   = peaks[i+1]
     if (end - start > 300):
         idx = return_max_idx(start,end,hist)
-        print("Inserting another potential peak at ", idx)
+        #print("Inserting another potential peak at ", idx)
         peaks.insert(i+1,idx)
-
-
-
 
 ####Get the valleys
 for i in range(0,len(peaks)-1):
@@ -250,135 +288,66 @@ for i in range(0,len(peaks)-1):
     valleys.append(idx)
 
 ####Potential small words
-
-
-
-print("Peaks ",peaks)
-print("Valleys ",valleys)
-
-save_img =  np.zeros((img_height,img_width))
+save_img =  np.zeros((img_height, img_width,))
 
 for i in range(0,img_height):
     for j in range(0,img_width):
-        save_img[i][j] = image[i][j]
+        save_img[i][(img_width-1) - j] = image[i][j] 
+        
+        
 frst_ln = valleys[0]
 lst_ln = valleys[-1]
 
-
 valleys.insert(0,frst_ln-300)
-valleys.insert(-1,lst_ln+300)
+valleys.append(lst_ln+300)
 
 ###Remove the blocks
-
-# for i in range(0,len(valleys)):
-#     block_col =blocks_on_road(save_img[valleys][:])
-
-
-
-# for i in range(0,img_width):
-#     save_img[valleys[0]][i] = 100
 
 lowr_lines_max = []
 upr_line_min = []
 line_str = []
 
-for i in range(0,len(valleys)):
-    end_nd = a_star(0, img_width, valleys[i], save_img,img_width-1,img_height-1)
+
+
+#average distance between valleys
+avg = 0
+for i in range(0,len(valleys)-1):
+    avg += valleys[i+1]-valleys[i]
+avg = avg/(len(valleys)-1)
+
+
+copy = valleys[4:5]
+
+
+# imgplot = plt.imshow(save_img)
+# plt.show()
+
+for i in valleys:
+    end_nd = a_star(Point(i,0), Point(i,img_width-1), save_img, avg)
     lower_line_max = 0
     upper_line_min = 99999
     line = []
     while(end_nd!=None):
-        save_img[end_nd.cordinates.x][end_nd.cordinates.y] = 100
-        line.append(end_nd.cordinates.x)
-        if(end_nd.cordinates.x > lower_line_max):
-            lower_line = end_nd.cordinates.x
-            lower_line_max = end_nd.cordinates.x
-        if(end_nd.cordinates.x < upper_line_min):
-            upper_line_min = end_nd.cordinates.x
-            upper_line = end_nd.cordinates.x
+        save_img[end_nd.cordinates.x][end_nd.cordinates.y] = 100 #draw in the path
+        line.append([end_nd.cordinates.x, end_nd.cordinates.y])
         end_nd = end_nd.parent
     line.reverse()
-    line_str.append(line)
-    upr_line_min.append(upper_line_min)
-    lowr_lines_max.append(lower_line)
+    line_str.append(line) 
 
-for iter in range(1,len(valleys)):
-    upper_line = upr_line_min[iter-1]
-    lower_line = lowr_lines_max[iter]
-    img_cp = np.copy(save_img)
-    print("Img width",img_width)
-    for i in range(0,img_width):
-        print("I is ",i)
-        img_cp[0:line_str[iter-1][i],i] = 255
-        img_cp[line_str[iter][i]:img_height,i] = 255
+save_img_inv =  np.zeros((img_height,img_width)) #I had to invert here but couldn't find why
 
-    img_cp = img_cp[upper_line:lower_line,:]
-    img_cp = segment_words(img_cp)
-    save_ln = Image.fromarray(img_cp)
-    if save_ln !='RGB':
-        save_ln = save_ln.convert('RGB')
-    save_ln.save(str(iter)+".jpg")
+for i in range(0,img_height):
+    for j in range(0,img_width):
+        save_img_inv[i][(img_width-1) -j] = save_img[i][j]
+        
+im = Image.fromarray(save_img_inv)
 
-print("Done updating \n")
-im = Image.fromarray(save_img)
+
 
 if im.mode != 'RGB':
     im = im.convert('RGB')
 im.save("Test3.jpg")
 print("Done")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
