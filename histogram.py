@@ -125,7 +125,7 @@ def g_score_cal(direction):
     return float(math.sqrt(direction[0]*direction[0] + direction[1]*direction[1]))
 
 def min_dist(position, image, win_h):
-    C = 150
+    C = 1000
     min_d = 0
     x= position.x
     y= position.y
@@ -208,8 +208,9 @@ def a_star(start ,end, image, win_h): #grid_width,grid_height):
             #Checking whether we are still in the window and neighbour is white. Maybe win_h * 1.5 or based on maxima
             if ((neighbr.x > min(im_hgt, start.x+win_h/2)) or (neighbr.x < max(0, start.x-win_h/2)) or (neighbr.y < 0) or (neighbr.y > end.y)):
                 continue
-            if not transverable(neighbr, image): #needs to be able to cut through blacks eventually
-                continue
+            
+            # if not transverable(neighbr, image): #needs to be able to cut through blacks eventually
+            #     continue
             
             #Already in the closed list?
             cls_lst_cordinates = [cls.cordinates for cls in close_lst] #do not rebuild it all the time
@@ -224,8 +225,12 @@ def a_star(start ,end, image, win_h): #grid_width,grid_height):
 
             #f_score computation
             g_scr = g_score_cal(direction) + current.g_score 
-            #g_scr = new_g_score_cal(direction, current.cordinates, image, win_h) + current.g_score 
-            h_score = heuristics(neighbr,end)
+            #g_scr = new_g_score_cal(direction, current.cordinates, image, win_h) #+ current.g_score 
+            h_score = heuristics(neighbr,end) #+ min_dist(current.cordinates, image, win_h)
+            if not transverable(neighbr, image): #needs to be able to cut through blacks eventually
+                # print('before: ' + str(h_score) + '\n')    
+                h_score += 50000 
+                # print('after: ' + str(h_score) + '\n')
             f_scr = h_score + g_scr #g_scr + h_scr + current.g_score
             # print('    g_score ' + str(g_scr) +  ' : ' + 'h_score ' + str(h_score) + '\n')
             #if it is already in the open list, keep only the one with the lower f-score otgerwise just save it
