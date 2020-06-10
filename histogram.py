@@ -4,6 +4,8 @@ import numpy as np
 import math
 import statistics
 import sys
+import os
+
 import time
 from scipy.signal import argrelextrema
 
@@ -229,7 +231,7 @@ def a_star(start ,end, image, win_h): #grid_width,grid_height):
             h_score = heuristics(neighbr,end) #+ min_dist(current.cordinates, image, win_h)
             if not transverable(neighbr, image): #needs to be able to cut through blacks eventually
                 # print('before: ' + str(h_score) + '\n')    
-                h_score += 50000 
+                h_score += 80000 
                 # print('after: ' + str(h_score) + '\n')
             f_scr = h_score + g_scr #g_scr + h_scr + current.g_score
             # print('    g_score ' + str(g_scr) +  ' : ' + 'h_score ' + str(h_score) + '\n')
@@ -249,9 +251,17 @@ def a_star(start ,end, image, win_h): #grid_width,grid_height):
                 open_lst.append(new_elmnt)
     print("Error: A* found no viable path")
     sys.exit()
+   
     
-
-image = np.asarray(Image.open('/home/basti/Desktop/HWR/binarized/P123-Fg001-R-C01-R01-binarized.jpg'))
+############ END A* #############################
+   
+    
+   
+#P123-Fg001-R-C01-R01-binarized.jpg
+#P342-Fg001-R-C01-R01-binarized.jpg
+#P123-Fg002-R-C01-R01-binarized.jpg
+file = "P123-Fg001-R-C01-R01-binarized"
+image = np.asarray(Image.open('/home/basti/Desktop/HWR/binarized/'+ file + ".jpg"))
 img_height, img_width = image.shape
 hist=[]
 for i in range(0,img_height):
@@ -303,16 +313,6 @@ for i in range(0,img_height):
 frst_ln = valleys[0]
 lst_ln = valleys[-1]
 
-valleys.insert(0,frst_ln-300)
-valleys.append(lst_ln+300)
-
-###Remove the blocks
-
-lowr_lines_max = []
-upr_line_min = []
-line_str = []
-
-
 
 #average distance between valleys
 avg = 0
@@ -321,41 +321,85 @@ for i in range(0,len(valleys)-1):
 avg = avg/(len(valleys)-1)
 
 
-copy = valleys[4:5]
+
+valleys.insert(0,max(0, frst_ln-round(1.5*avg)))
+valleys.append(min(img_height, lst_ln+round(1.5*avg)))
 
 
 # imgplot = plt.imshow(save_img)
 # plt.show()
 
-for i in valleys:
+###### MAIN - LINE SEGMENTATION ###########################
+
+copy = valleys[1:4]
+
+
+lines = []
+for i in copy:
     end_nd = a_star(Point(i,0), Point(i,img_width-1), save_img, avg)
     lower_line_max = 0
     upper_line_min = 99999
     line = []
     while(end_nd!=None):
-        save_img[end_nd.cordinates.x][end_nd.cordinates.y] = 100 #draw in the path
+        #save_img[end_nd.cordinates.x][end_nd.cordinates.y] = 100 #draw in the path
         line.append([end_nd.cordinates.x, end_nd.cordinates.y])
         end_nd = end_nd.parent
     line.reverse()
-    line_str.append(line) 
+    lines.append(line) 
 
-save_img_inv =  np.zeros((img_height,img_width)) #I had to invert here but couldn't find why
+############ SAVING RESULTS #####################
 
-for i in range(0,img_height):
-    for j in range(0,img_width):
-        save_img_inv[i][(img_width-1) -j] = save_img[i][j]
+
+########## SINGLE LINES
+
+def turn_over_y(image):
+    h, w = image.shape
+    turned = np.zeros((h,w))
+    for r in range(h):
+        for c in range(w):
+            turned[r][w-1-c] = image[r][c]
+            
+    return turned
+
+def extract_lines(image, upper, lower):
+    min_row = np.min(upper[:, 0])
+    height = np.max(lower[:, 0]) - min_row
+    width = image.shape[1]
+    segment = np.ones([height, width])*255
+    rest, indeces = np.unique(upper[:,1], return_index = True, axis=0)
+    upper_u = upper[indeces]
+    rest, indeces = np.unique(lower[:,1], return_index = True, axis=0)
+    lower_u = lower[indeces]
+    for c in range(width-1):
+        for r in range(upper_u[c][0], lower_u[c][0]):
+            segment[r-min_row][c] = image[r][c]
+    return segment
+
+for i in range(len(lines)-1):
+    line_img_array = extract_lines(save_img, np.array(lines[i]), np.array(lines[i+1]))
+    line_img_array = turn_over_y(line_img_array)
+    line_img = Image.fromarray(line_img_array)
+    
+    if not os.path.exists(file):
+        os.makedirs(file)
+    if line_img.mode != 'RGB':
+        line_img = line_img.convert('RGB')
+    line_img.save( file + "/Line_" + str(i) + ".jpg") #later add number of image aswell
+
+##########
+
+########## The entire image with cutting lines drawn in (requires statement in main while loop) #######
+# save_img_inv =  np.zeros((img_height,img_width))  #turned_over_y
+# for i in range(0,img_height):
+#     for j in range(0,img_width):
+#         save_img_inv[i][(img_width-1) -j] = save_img[i][j]
         
-im = Image.fromarray(save_img_inv)
+# im = Image.fromarray(save_img_inv)
 
 
-
-if im.mode != 'RGB':
-    im = im.convert('RGB')
-im.save("Test3.jpg")
-print("Done")
-
-
-
-
+# if im.mode != 'RGB':
+#     im = im.convert('RGB')
+# im.save("Test3.jpg")
+# print("Done")
 
 
