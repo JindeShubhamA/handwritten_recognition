@@ -17,31 +17,34 @@ diagnostics = True
 
 class SWTScrubber(object):
     @classmethod
-    def scrub(cls, filepath):
+    def scrub(cls, line_img):
         """
         Apply Stroke-Width Transform to image.
 
         :param filepath: relative or absolute filepath to source image
         :return: numpy array representing result of transform
         """
-        canny, sobelx, sobely, theta = cls._create_derivative(filepath)
+        canny, sobelx, sobely, theta = cls._create_derivative(line_img)
         swt = cls._swt(theta, canny, sobelx, sobely)
         shapes = cls._connect_components(swt)
         swts, heights, widths, topleft_pts, images = cls._find_letters(swt, shapes)
         word_images = cls._find_words(swts, heights, widths, topleft_pts, images)
 
+        if  word_images == None:
+            return None, None
         final_mask = np.zeros(swt.shape)
         for word in word_images:
             final_mask += word
-        return final_mask
+        return final_mask, 1
 
     @classmethod
-    def _create_derivative(cls, filepath):
-        img = cv2.imread(filepath,0)
-        edges = cv2.Canny(img, 175, 320, apertureSize=3)
+    def _create_derivative(cls, line_img):
+        # img = cv2.imread(filepath,0)
+        line_img=np.uint8(line_img)
+        edges = cv2.Canny(line_img, 175, 320, apertureSize=3)
         # Create gradient map using Sobel
-        sobelx64f = cv2.Sobel(img,cv2.CV_64F,1,0,ksize=-1)
-        sobely64f = cv2.Sobel(img,cv2.CV_64F,0,1,ksize=-1)
+        sobelx64f = cv2.Sobel(line_img,cv2.CV_64F,1,0,ksize=-1)
+        sobely64f = cv2.Sobel(line_img,cv2.CV_64F,0,1,ksize=-1)
 
         theta = np.arctan2(sobely64f, sobelx64f)
         # if diagnostics:
@@ -95,6 +98,11 @@ class SWTScrubber(object):
                                     ray.append((cur_x, cur_y))
                                     theta_point = theta[y, x]
                                     alpha = theta[cur_y, cur_x]
+
+                                    inv_cos = grad_x * -grad_x_g[cur_y, cur_x] + grad_y * -grad_y_g[cur_y, cur_x]
+                                    if abs(inv_cos) > 1:
+                                        continue
+
                                     if math.acos(grad_x * -grad_x_g[cur_y, cur_x] + grad_y * -grad_y_g[cur_y, cur_x]) < np.pi/2.0:
                                         thickness = math.sqrt( (cur_x - x) * (cur_x - x) + (cur_y - y) * (cur_y - y) )
                                         for (rp_x, rp_y) in ray:
@@ -316,7 +324,11 @@ class SWTScrubber(object):
                 pairs.append(pair)
                 pair_angles.append(np.asarray([angle]))
 
-        angle_tree = scipy.spatial.KDTree(np.asarray(pair_angles))
+        try:
+            angle_tree = scipy.spatial.KDTree(np.asarray(pair_angles))
+
+        except:
+            return None
         atp = angle_tree.query_pairs(np.pi/12)
 
         for pair_idx in atp:
@@ -358,81 +370,92 @@ class SWTScrubber(object):
 
         return word_images
 
+def character_seg(line_img,cnt):
 
-file_url = '/Users/jindeshubham/Desktop/handwritten_recognition/5.jpg'
+    # file_url = image_name
+    #
+    # orgnl_img = cv2.imread(file_url,0)
 
-orgnl_img = cv2.imread(file_url,0)
+    rows, cols = line_img.shape
+    org_count=0
+    for i in range(0,cols):
+        for j in range(0,rows):
+            org_count = org_count + line_img[j][i]
 
-rows, cols = orgnl_img.shape
-org_count=0
-for i in range(0,cols):
-    for j in range(0,rows):
-        org_count = org_count + orgnl_img[j][i]
+    try:
+        #s3_response = urlopen(file_url)
+        #with open(local_filename, 'wb+') as destination:
+        #    while True:
+                # read file in 4kB chunks
+        #        chunk = s3_response.read(4096)
+        #        if not chunk: break
+        #        destination.write(chunk)
+        #final_mask = SWTScrubber.scrub('wallstreetsmd.jpeg')
+        final_mask, flag = SWTScrubber.scrub(line_img)
+        if flag == None:
+            return
+        # final_mask = cv2.GaussianBlur(final_mask, (1, 3), 0)
+        # cv2.GaussianBlur(sobelx64f, (3, 3), 0)
+        cv2.imwrite('final.jpg', final_mask * 255)
+        print (time.clock() - t0)
+    finally:
+        #s3_response.close()
+        print("Done")
+    '''
+    img = cv2.imread('swt.jpg',0)
+    print(type(img))
+    row, cols = img.shape
+    kernel = np.ones((5,5),np.uint8)
+    closing = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+    #cv2.imwrite('closing.jpg', closing * 255)
+    hist=[]
+    for i in range(0,cols):
+        count=0
+        for j in range(0,row):
+            if (closing[j][i] == 0):
+                count = count + 1
+        hist.append(count)
+    plt.plot(hist)
+    plt.savefig("test1.jpg")
+    swt_count =0
+
+    for i in range(0,cols):
+        for j in range(0,rows):
+            swt_count = swt_count + img[j][i]
+
+    threshold = swt_count/(rows*cols)
+
+    print("Threshold is ",threshold)
+    ptential_valleys = []
+    print(min(hist))
+    for i in range(0,len(hist)):
+        if(hist[i]<threshold/2):
+            print(i)
+    '''
+    try:
+        img = cv2.imread('swt.jpg')
+        mser = cv2.MSER_create()
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) #Converting to GrayScale
+        gray_img = img.copy()
+        hulls = []
+        regions,_ = mser.detectRegions(gray)
+
+        reg_cor = {"xmin":"","ymin":"","xmax":"","ymax":""}
+        cordinates_lst = []
+
+        for p in regions:
+             p = np.array(p)
+             reg_cor["xmin"] = min(p[:,0])
+             reg_cor["xmax"] = max(p[:,0])
+             reg_cor["ymin"] = min(p[:,1])
+             reg_cor["ymax"] = max(p[:,1])
+             cv2.rectangle(gray_img, ( min(p[:,0]), min(p[:,1])), (max(p[:,0]),  max(p[:,1])), (0, 255, 0), 1)
+             #cordinates_lst.append(reg_cor)
 
 
-local_filename = hashlib.sha224(file_url).hexdigest()
-
-try:
-    #s3_response = urlopen(file_url)
-    #with open(local_filename, 'wb+') as destination:
-    #    while True:
-            # read file in 4kB chunks
-    #        chunk = s3_response.read(4096)
-    #        if not chunk: break
-    #        destination.write(chunk)
-    #final_mask = SWTScrubber.scrub('wallstreetsmd.jpeg')
-    final_mask = SWTScrubber.scrub(file_url)
-    # final_mask = cv2.GaussianBlur(final_mask, (1, 3), 0)
-    # cv2.GaussianBlur(sobelx64f, (3, 3), 0)
-    cv2.imwrite('final.jpg', final_mask * 255)
-    print (time.clock() - t0)
-finally:
-    #s3_response.close()
-    print("Done")
-'''
-img = cv2.imread('swt.jpg',0)
-
-
-
-
-print(type(img))
-row, cols = img.shape
-kernel = np.ones((5,5),np.uint8)
-closing = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
-#cv2.imwrite('closing.jpg', closing * 255)
-hist=[]
-for i in range(0,cols):
-    count=0
-    for j in range(0,row):
-        if (closing[j][i] == 0):
-            count = count + 1
-    hist.append(count)
-plt.plot(hist)
-plt.savefig("test1.jpg")
-swt_count =0
-
-for i in range(0,cols):
-    for j in range(0,rows):
-        swt_count = swt_count + img[j][i]
-
-threshold = swt_count/(rows*cols)
-
-print("Threshold is ",threshold)
-ptential_valleys = []
-print(min(hist))
-for i in range(0,len(hist)):
-    if(hist[i]<threshold/2):
-        print(i)
-'''
-
-img = cv2.imread('swt.jpg')
-mser = cv2.MSER_create()
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) #Converting to GrayScale
-gray_img = img.copy()
-hulls = []
-regions,_ = mser.detectRegions(gray)
-for p in regions:
-     p = np.array(p)
-     hulls.append(cv2.convexHull(p.reshape(-1, 1, 2)))
-cv2.polylines(gray_img, hulls, 1, (0, 0, 255), 2)
-cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/mser.jpg', gray_img) #Saving
+        cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/mser'+str(cnt)+'.jpg', gray_img) #Saving
+    except:
+        print("FAILED TO FIND")
+# import cv2
+# img = cv2.imread("swt.jpg", 0)
+# print(img)
