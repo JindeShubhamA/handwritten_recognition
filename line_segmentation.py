@@ -7,6 +7,7 @@ from collections import OrderedDict
 import os
 from character_segmentation import character_seg
 import sys
+import cv2
 
 #Global Variables
 filter_size = 50
@@ -198,6 +199,7 @@ def blocks_on_road(grid):
 # def check_in_grid(row,Point):
 #     if abs(Point.x - row)> 20
 #         return False
+''' We tried this but it didn't work to our satisfaction
 
 def min_dist(position, image, win_h):
     C = 1000
@@ -210,7 +212,7 @@ def min_dist(position, image, win_h):
 
 def new_g_score_cal(direction, position, image, win_h): #did not work as intended
     return float(math.sqrt(direction[0]*direction[0] + direction[1]*direction[1])) + min_dist(position, image, win_h)
-
+'''
 
 '''
 Standard A* algorithm
@@ -351,10 +353,44 @@ def a_star(start, end, image, win_h):  # grid_width,grid_height):
     print("Error: A* found no viable path")
     sys.exit()
 
+
+'''
+Read in the Input
+'''
+
 file = "P106-Fg002-R-C01-R01-binarized"
 image = np.asarray(Image.open('/Users/jindeshubham/Desktop/handwritten_recognition/image-data/'+file+'.jpg'))
 img_height, img_width = image.shape
 hist=[]
+
+'''
+Preprocessing
+'''
+
+img = image.copy()
+preprocessing = 0
+if preprocessing == 1:
+    
+    # First invert colors
+    
+    img = cv2.bitwise_not(img)
+    
+    ## Erosion
+    kernel = np.ones((5,5),np.uint8)
+    erosion = cv2.erode(img,kernel,iterations = 1)
+    
+    ## Dilation
+    #dilation = cv2.dilate(img,kernel,iterations = 1)
+    
+    ## Opening 
+    #opening = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
+    
+    ## Closing
+    #closing = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+        
+    img = cv2.bitwise_not(erosion)
+
+
 
 #Horizonal Projection of the image
 for i in range(0,img_height):

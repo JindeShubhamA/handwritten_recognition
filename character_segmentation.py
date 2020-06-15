@@ -442,16 +442,18 @@ def character_seg(line_img,cnt):
 
         reg_cor = {"xmin":"","ymin":"","xmax":"","ymax":""}
         cordinates_lst = []
-
+        stepper = 0
         for p in regions:
              p = np.array(p)
              reg_cor["xmin"] = min(p[:,0])
              reg_cor["xmax"] = max(p[:,0])
              reg_cor["ymin"] = min(p[:,1])
              reg_cor["ymax"] = max(p[:,1])
+             letter = gray_img[min(p[:,1]):max(p[:,1]),min(p[:,0]):max(p[:,0]),:]
+             cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/'+ 'letter_' + str(stepper)+'.jpg', letter) ### with both this and the next line enabled we'll have the green lines in our letters
              cv2.rectangle(gray_img, ( min(p[:,0]), min(p[:,1])), (max(p[:,0]),  max(p[:,1])), (0, 255, 0), 1)
              #cordinates_lst.append(reg_cor)
-
+             stepper += 1
 
         cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/mser'+str(cnt)+'.jpg', gray_img) #Saving
     except:
@@ -459,3 +461,43 @@ def character_seg(line_img,cnt):
 # import cv2
 # img = cv2.imread("swt.jpg", 0)
 # print(img)
+
+'''
+MINI MAIN FOR DEVELOPMENT
+'''
+#### Read in Input ####
+
+from PIL import Image
+cnt = 1
+folder = "P123-Fg002-R-C01-R01-binarized"
+image = np.asarray(Image.open('/home/basti/Desktop/HWR/Sebastian/'+ folder + "/Line_" + str(cnt) + ".jpg").convert('L'))
+img = image.copy()
+
+
+### Preprocessing ###
+preprocessing = 0
+if preprocessing == 1:
+    
+    # First invert colors
+    
+    img = cv2.bitwise_not(img)
+    
+    ## Erosion
+    kernel = np.ones((5,5),np.uint8)
+    erosion = cv2.erode(img,kernel,iterations = 1)
+    
+    ## Dilation
+    #dilation = cv2.dilate(img,kernel,iterations = 1)
+    
+    ## Opening 
+    #opening = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
+    
+    ## Closing
+    #closing = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+        
+    img = cv2.bitwise_not(erosion)
+    
+#### MAIN ####
+
+character_seg(img, cnt)
+
