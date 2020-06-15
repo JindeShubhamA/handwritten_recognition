@@ -230,11 +230,23 @@ valleys.append(min(img_height, lst_ln+round(1.5*avg)))
 
 
 ###### LINE SEGMENTATION #####
+
+def turn_over_y(image):
+    h, w = image.shape
+    turned = np.zeros((h,w))
+    for r in range(h):
+        for c in range(w):
+            turned[r][w-1-c] = image[r][c]
+    return turned
+
 save_img = image.copy()  
 
-copy = valleys[1:5]
+save_img = turn_over_y(save_img)
+
+copy = valleys[2:4]
+
 lines = []
-for i in copy:
+for i in valleys:
     end_node = a_star(Point(i,0), Point(i,img_width-1), save_img, avg)
     line = []
     while(end_node!=None):
@@ -246,13 +258,6 @@ for i in copy:
 
 #### SAVING RESULTS ####
 
-def turn_over_y(image):
-    h, w = image.shape
-    turned = np.zeros((h,w))
-    for r in range(h):
-        for c in range(w):
-            turned[r][w-1-c] = image[r][c]
-    return turned
 
 def extract_lines(image, upper, lower):
     min_row = np.min(upper[:, 0])
@@ -277,7 +282,7 @@ for i in range(len(lines)-1):
         os.makedirs(file)
     if line_img.mode != 'RGB':
         line_img = line_img.convert('RGB')
-    line_img.save( file + "/Line_" + str(i) + ".jpg") #later add number of image aswell
+    line_img.save(file + "/Line_" + str(i) + ".jpg") #later add number of image aswell
 
 #### Print out cutting lines ####
 ### (requires to uncomment line in main while loop, about line 250) ##
