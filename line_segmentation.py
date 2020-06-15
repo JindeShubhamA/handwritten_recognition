@@ -376,7 +376,7 @@ for i in range(0,len(hist)):
         if(hist[i]>100):
            peaks.append(i)
 
-#Checks if any potental peak can be added. Logic is that if the difference between two peaks is large
+#Checks if any potential peak can be added. Logic is that if the difference between two peaks is large
 #we add a peak which is the maximum of point between two peaks.
 insert_peak_lst = []
 for i in range(0,len(peaks)-1):
@@ -495,9 +495,19 @@ print("Done")
 ###### LINE SEGMENTATION #####
 save_img = image.copy()
 
-copy = valleys[1:]
+def turn_over_y(image):
+    h, w = image.shape
+    turned = np.zeros((h, w))
+    for r in range(h):
+        for c in range(w):
+            turned[r][w - 1 - c] = image[r][c]
+    return turned
+
+save_img = turn_over_y(save_img)
+
+copy = valleys[1:3]
 lines = []
-for i in copy:
+for i in valleys:
     end_node = a_star(Point(i, 0), Point(i, img_width - 1), save_img, avg_val_dis)
     line = []
     while (end_node != None):
@@ -509,14 +519,6 @@ for i in copy:
 
 
 #### SAVING RESULTS ####
-
-def turn_over_y(image):
-    h, w = image.shape
-    turned = np.zeros((h, w))
-    for r in range(h):
-        for c in range(w):
-            turned[r][w - 1 - c] = image[r][c]
-    return turned
 
 
 def extract_lines(image, upper, lower):
