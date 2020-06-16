@@ -57,7 +57,7 @@ class SWTScrubber(object):
         return (edges, sobelx64f, sobely64f, theta)
 
     @classmethod
-    def _swt(self, theta, edges, sobelx64f, sobely64f):
+    def _swt(self, theta, edges, sobelx64f, sobely64f): #stroke width transform
         # create empty image, initialized to infinity
         swt = np.empty(theta.shape)
         swt[:] = np.Infinity
@@ -191,7 +191,7 @@ class SWTScrubber(object):
         label_map = np.zeros(shape=swt.shape, dtype=np.uint16)
         next_label = 1
         # First Pass, raster scan-style
-        swt_ratio_threshold = 3.0
+        swt_ratio_threshold = 3.0 ########################################################## parameter
         for y in range(swt.shape[0]):
             for x in range(swt.shape[1]):
                 sw_point = swt[y, x]
@@ -391,6 +391,7 @@ def character_seg(line_img,cnt):
         #        if not chunk: break
         #        destination.write(chunk)
         #final_mask = SWTScrubber.scrub('wallstreetsmd.jpeg')
+        
         final_mask, flag = SWTScrubber.scrub(line_img)
         if flag == None:
             return
@@ -434,6 +435,7 @@ def character_seg(line_img,cnt):
     '''
     try:
         img = cv2.imread('swt.jpg')
+        #img = cv2.bitwise_not(np.asarray(Image.open('/home/basti/Desktop/HWR/Sebastian/'+ folder + "/Line_" + str(cnt) + ".jpg")))
         mser = cv2.MSER_create()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) #Converting to GrayScale
         gray_img = img.copy()
@@ -443,28 +445,43 @@ def character_seg(line_img,cnt):
         reg_cor = {"xmin":"","ymin":"","xmax":"","ymax":""}
         cordinates_lst = []
         stepper = 0
+        rect_ls = []
         for p in regions:
+            
              p = np.array(p)
              reg_cor["xmin"] = min(p[:,0])
              reg_cor["xmax"] = max(p[:,0])
              reg_cor["ymin"] = min(p[:,1])
              reg_cor["ymax"] = max(p[:,1])
-             letter = gray_img[min(p[:,1]):max(p[:,1]),min(p[:,0]):max(p[:,0]),:]
-             cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/'+ 'letter_' + str(stepper)+'.jpg', letter) ### with both this and the next line enabled we'll have the green lines in our letters
-             cv2.rectangle(gray_img, ( min(p[:,0]), min(p[:,1])), (max(p[:,0]),  max(p[:,1])), (0, 255, 0), 1)
+             bl = (reg_cor["xmin"],reg_cor["ymin"]) # bl = bottom left
+             tr = (reg_cor["xmax"],reg_cor["ymax"]) # tr = top right
+             rect_ls.append((bl,tr))
+             diff = np.subtract(tr, bl)
+             if (diff[0]*diff[1]) > 1000: # if the rectangle is reasonable large enough (should we make this relative to reduce the amount of parameters we have to set?!)
+                 ''' In case we want to exclude overlaping rectangles
+                     def intersects(self, other):
+                         return not (self.top_right.x < other.bottom_left.x or self.bottom_left.x > other.top_right.x or self.top_right.y < other.bottom_left.y or self.bottom_left.y > other.top_right.y)
+
+                 '''
+                 letter = gray_img[min(p[:,1]):max(p[:,1]),min(p[:,0]):max(p[:,0]),:]
+                 
+                 kernel = np.ones((2,2),np.uint8)
+                 letter = cv2.morphologyEx(letter, cv2.MORPH_CLOSE, kernel)
+                 
+                 cv2.imwrite('/home/basti/Desktop/HWR/Sebastian/letters/'+ str(stepper)+'.jpg', letter) ### with both this and the next line enabled we'll have the green lines in our letters
+                
+             #cv2.rectangle(gray_img, (min(p[:,0]), min(p[:,1])), (max(p[:,0]),  max(p[:,1])), (0, 255, 0), 1)
              #cordinates_lst.append(reg_cor)
              stepper += 1
 
-        cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/mser'+str(cnt)+'.jpg', gray_img) #Saving
+        
+        #cv2.imwrite('/Users/jindeshubham/Desktop/handwritten_recognition/mser'+str(cnt)+'.jpg', gray_img) #Saving
+        cv2.imwrite('/home/basti/Desktop/HWR/Sebastian/'+ str(cnt)+'.jpg', gray_img) #Saving
     except:
         print("FAILED TO FIND")
-# import cv2
-# img = cv2.imread("swt.jpg", 0)
-# print(img)
 
-'''
-MINI MAIN FOR DEVELOPMENT
-'''
+
+
 #### Read in Input ####
 
 from PIL import Image
@@ -472,7 +489,6 @@ cnt = 1
 folder = "P123-Fg002-R-C01-R01-binarized"
 image = np.asarray(Image.open('/home/basti/Desktop/HWR/Sebastian/'+ folder + "/Line_" + str(cnt) + ".jpg").convert('L'))
 img = image.copy()
-
 
 ### Preprocessing ###
 preprocessing = 0
