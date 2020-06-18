@@ -1,28 +1,107 @@
 import PIL
 from PIL import Image
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 import math
-import statistics
-import sys
-import time
 import cv2
 import os
-from scipy.signal import argrelextrema
+from random import randrange
+from collections import Counter
 
-class Character:
-    def __init__(self, pic, label):
-        self.data = pic
-        self.label = label
-        self.archaic = 0
-        self.hasmonean = 0
-        self.herodian = 0
 
 class Label:
-    def __init__(self, pics, label):
+    def __init__(self, pics, label,style):
         self.data = pics
         self.label = label
-        
+        self.style = style
+        self.dist = np.inf
+    def __lt__(self,other): # needs to be defined to be able to sort the list with labels
+        return self.dist < other.dist
+    
+    
+# copied stuff (including some compability changes)#
+####################################################
+
+def cross_validation_split(dataset, n_folds):
+    dataset_split = list()
+    dataset_copy = list(dataset)
+    fold_size = int(len(dataset) / n_folds)
+    for _ in range(n_folds):
+        fold = list()
+        while len(fold) < fold_size:
+            index = randrange(len(dataset_copy))
+            fold.append(dataset_copy.pop(index))
+        dataset_split.append(fold)
+    return dataset_split
+ 
+# Calculate accuracy percentage
+def accuracy_metric(actual, predicted):
+	correct = 0
+	for i in range(len(actual)):
+		if actual[i] == predicted[i]:
+			correct += 1
+	return correct / float(len(actual)) * 100.0
+ 
+# Evaluate an algorithm using a cross validation split
+def evaluate_algorithm(dataset, algorithm, n_folds, *args):
+	folds = cross_validation_split(dataset, n_folds)
+	scores = list()
+	for fold in folds:
+		train_set = folds
+		train_set.remove(fold)
+		train_set = sum(train_set, [])
+		test_set = list()
+		for row in fold:
+			row_copy = row
+			test_set.append(row_copy)
+			row_copy.style = None
+		predicted = algorithm(train_set, test_set, *args)
+		actual = [row.style for row in fold]
+		accuracy = accuracy_metric(actual, predicted)
+		scores.append(accuracy)
+	return scores
+
+
+### The next 3 functions are actually used in KNN, rest is evaluation
+def euclidean_distance(r1, r2):
+    dist = 0.0
+    for i in range(len(r1)-1):
+        dist = dist + (r1[i] - r2[i])**2
+    dist = math.sqrt(dist)
+    return dist
+
+def get_neighbors(train, test_row, num_neighbors):
+    distances = list()
+    for train_row in train:
+        dist = euclidean_distance(test_row, train_row.data)
+        train_row.dist = dist
+        distances.append(train_row)
+    distances.sort()
+    neighbors = list()
+    for i in range(num_neighbors):
+        neighbors.append(distances[i])
+    return neighbors
+ 
+
+def predict_classification(train, test_row, num_neighbors):
+	neighbors = get_neighbors(train, test_row, num_neighbors)
+	output_values = [row.style for row in neighbors]
+	prediction = max(set(output_values), key=output_values.count)
+	return prediction
+####
+
+
+
+def k_nearest_neighbors(train, test, num_neighbors):
+	predictions = list()
+	for row in test:
+		output = predict_classification(train, row.data, num_neighbors)
+		predictions.append(output)
+	return(predictions)
+
+
+# copied stuff end#################################
+###################################################
 
 def makePerspHist(img):
     norm_size = 64
@@ -59,24 +138,12 @@ def makePerspHist(img):
         #ph[2,d] = sum(np.diagonal(img_norm,i,0,1))
         #ph[3,d] = sum(np.diagonal(img_norm,i,1,0))
         d = d+1
-    
+    ph = np.concatenate(ph)
     return ph
 
-###############################
-#testing    
-test = np.zeros([4,4], dtype=int)
-test[0,0] = 1    
-test[0,1] = 2
-test[1,0] = 3 
-test[1,1] = 4 
-#test = Image.fromarray(test)
-#test_1 = test.resize((2,2),PIL.Image.NEAREST)
-ph = makePerspHist(test)
-print(ph)
-###############################
-
-
-# Assumption get pictures and labels from calssification
+#########################################################################
+###### Main Code ########################################################
+#########################################################################
 
 # First get style labels
 path = 'c:/Users/nikee/Desktop/hwr_style/train_data/'
@@ -101,28 +168,8 @@ for style in style_type:
     images.append(image_per_style)
 
 
-
-# test if there are any unique labels in each class (they would be pretty useless):
-# this test can be excluded from the final version of the code
-unique_list = []    
-count_list = []    
-for x in range(1,3):
-    for y in letter_type[x]:
-        if y not in unique_list:
-            temp = y
-            unique_list.append(temp)
-        else:
-            if y not in count_list:
-                count_list.append(y)
-if len(unique_list) != len(count_list):
-    print("There are style unique classes")
-else:
-    print("All classes are there at least twice (YAAHY)")
-
-
-# next import characters from file
+# next import characters from file and transform them into histograms
 char_list = []
-
 
 i = 0
 for style in images:
@@ -132,26 +179,51 @@ for style in images:
         for pic in letter:
             img = np.asarray(Image.open(path+style_type[i]+'/'+letter_type[i][c]+'/'+pic))
             img_list = makePerspHist(img)
-            pic_list.append(img_list)
-        char_list.append(Label(pic_list,style))
+            #pic_list.append(img_list)
+            char_list.append(Label(img_list,pic, style_type[i]))
         c = c+1
     i = i+1
+# outputs 1511, but should be 1508 - check this later
+
+### Import of evaluation data would happen here:    
+
+    
+#import_data = IMPORT HERE
+#test_data = []
+#for picture in import_data:
+#    test_data.append(makePerspHist(picture))
 
 
-# normalize size for all input files
+# Uses a train data row to test prediction
+test_data = char_list[3].data
 
-#  Create PHs (perspective Histograms) from 4 perspectives
-# This could be expanded, or replaced with different feature extractors eg SIFT
 
 # implement KNN
+num_neighbors = 5
+n_folds = 5
+## Current KNN test.
+label = predict_classification(char_list, test_data, num_neighbors)
+print(label)
+
+#evaluation = evaluate_algorithm(char_list, k_nearest_neighbors, n_folds, num_neighbors)
+#not sure how this actually works, but evaluation results are not overwhemling (=Very bad)
+#however this might be because incomplete sample sets results in very big problems during cross validation
 
 
+# Now this would run for a set of characters
+#labels = []
+
+# assumes chars to be the hists
+
+#for chars in test_data:
+#   labels.append(predict_classification(char_list, chars, num_neighbors))
 # Summ results up
+#result = Counter(label)
+#for styles in results:
+#    print(style + ':' + result[style])
+#folder=[string1+s for s in folders]
 
-
-folder=[string1+s for s in folders]
-
-image = np.asarray(Image.open('/Users/nikee/Desktop/hwr_style
+#image = np.asarray(Image.open('/Users/nikee/Desktop/hwr_style
 
 
 
