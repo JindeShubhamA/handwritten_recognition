@@ -62,7 +62,7 @@ def evaluate_algorithm(dataset, algorithm, n_folds, *args):
 	return scores
 
 
-### The next 3 functions are actually used in KNN, rest is evaluation
+### The next 3 functions are actually used in KNN, rest is evaluation###
 def euclidean_distance(r1, r2):
     dist = 0.0
     for i in range(len(r1)-1):
@@ -88,7 +88,7 @@ def predict_classification(train, test_row, num_neighbors):
 	output_values = [row.style for row in neighbors]
 	prediction = max(set(output_values), key=output_values.count)
 	return prediction
-####
+#######################################################################
 
 
 
@@ -109,9 +109,6 @@ def makePerspHist(img):
     img = Image.fromarray(img)
     img_norm = img.resize((norm_size,norm_size),up_filter)
     img_norm = np.asarray(img_norm)
-    #with np.printoptions(threshold=np.inf):
-     #   print(img_norm)
-    #print(img)
     # this needs to be done for 4 different perspectives
     ph = np.zeros([4,(norm_size*2)-1], dtype=int)
     # Horizontal  (sum x)
@@ -134,13 +131,14 @@ def makePerspHist(img):
         for t in np.diagonal(img_norm_flip,i,0,1):
             if t == 0:
                 ph[3,d] = ph[3,d]+1
-        
-        #ph[2,d] = sum(np.diagonal(img_norm,i,0,1))
-        #ph[3,d] = sum(np.diagonal(img_norm,i,1,0))
         d = d+1
     ph = np.concatenate(ph)
     return ph
 
+def showResult(res):
+    result = Counter(res)
+    for styles in result:
+        print(str(styles) + ': ' + str(result[styles]))
 #########################################################################
 ###### Main Code ########################################################
 #########################################################################
@@ -183,27 +181,29 @@ for style in images:
             char_list.append(Label(img_list,pic, style_type[i]))
         c = c+1
     i = i+1
-# outputs 1511, but should be 1508 - check this later
 
 ### Import of evaluation data would happen here:    
 
-    
-#import_data = IMPORT HERE
-#test_data = []
-#for picture in import_data:
-#    test_data.append(makePerspHist(picture))
+import_path = 'c:/Users/nikee/Desktop/hwr_style/test_data/'  
+
+import_data = os.listdir(import_path)
+test_data = []
+for picture in import_data:
+    img = np.asarray(Image.open(import_path+'/'+picture))
+    img = cv2.bitwise_not(img[:,:,2]) # invert colors + make the array 1 dimensional
+    test_data.append(makePerspHist(img))
 
 
 # Uses a train data row to test prediction
-test_data = char_list[3].data
+#test_data = char_list[3].data
 
 
 # implement KNN
 num_neighbors = 5
-n_folds = 5
+#n_folds = 5
 ## Current KNN test.
-label = predict_classification(char_list, test_data, num_neighbors)
-print(label)
+#label = predict_classification(char_list, test_data, num_neighbors)
+#print(label)
 
 #evaluation = evaluate_algorithm(char_list, k_nearest_neighbors, n_folds, num_neighbors)
 #not sure how this actually works, but evaluation results are not overwhemling (=Very bad)
@@ -211,20 +211,9 @@ print(label)
 
 
 # Now this would run for a set of characters
-#labels = []
+labels = []
 
-# assumes chars to be the hists
-
-#for chars in test_data:
-#   labels.append(predict_classification(char_list, chars, num_neighbors))
-# Summ results up
-#result = Counter(label)
-#for styles in results:
-#    print(style + ':' + result[style])
-#folder=[string1+s for s in folders]
-
-#image = np.asarray(Image.open('/Users/nikee/Desktop/hwr_style
-
-
-
-
+for chars in test_data:
+    labels.append(predict_classification(char_list, chars, num_neighbors))
+#Summ results up
+showResult(result)
